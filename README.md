@@ -1,168 +1,226 @@
-# Todo Web Application
+# Todo App - Sistema Completo con Configuración Dinámica
 
-A full-stack web application with a modern frontend, FastAPI backend, and PostgreSQL database.
+Una aplicación de tareas completa con frontend, backend (FastAPI), y base de datos PostgreSQL, optimizada para despliegues flexibles con configuración basada en variables de entorno.
 
-## 📁 Project Structure
+## 🚀 Configuración Rápida
 
-```
-├── front/          # Frontend (HTML/CSS/JavaScript)
-├── back/           # Backend (FastAPI with SQLAlchemy)
-├── db/             # Database setup and initialization
-└── README.md       # This file
-```
-
-## 🚀 Quick Start (Ubuntu)
-
-### 1. Database Setup
+### Opción 1: Script Automático (Recomendado)
 
 ```bash
-cd db
-sudo ./install.sh    # Install PostgreSQL
-./run.sh             # Initialize database
+# Hacer ejecutable el script (en Linux/Mac)
+chmod +x configure.sh
+
+# Ejecutar configuración
+./configure.sh
 ```
 
-### 2. Backend Setup
+Selecciona:
+- **1) Local development** - Para desarrollo local
+- **2) AWS VPC deployment** - Para despliegue en AWS
+- **3) Custom configuration** - Para configuración manual
 
+### Opción 2: Configuración Manual
+
+#### Para Desarrollo Local:
 ```bash
-cd ../back
-./install.sh         # Install Python, Poetry, and dependencies
-./run.sh             # Start FastAPI server (http://localhost:8000)
+# Backend
+cp back/env.local back/.env
+cd back && ./run.sh
+
+# Frontend - abrir front/index.html en el navegador
 ```
 
-### 3. Frontend Setup
-
+#### Para AWS VPC:
 ```bash
-cd ../front
-./install.sh         # Install Node.js and http-server
-./run.sh             # Start frontend server (http://localhost:3000)
+# Editar configuración
+nano back/env.example
+cp back/env.example back/.env
+
+# Actualizar con tus IPs
+BACKEND_HOST=172.31.84.125
+FRONTEND_HOST=172.31.81.41
+DATABASE_URL=postgresql://todouser:todopass@172.31.84.125:5432/todoapp
+CORS_ORIGINS=http://172.31.81.41,http://172.31.81.41:80,http://172.31.81.41:8080
 ```
 
-## 📋 Features
+## 📁 Estructura del Proyecto
 
-- **Frontend**: Modern, responsive Todo application
-- **Backend**: RESTful API with automatic documentation
-- **Database**: PostgreSQL with proper ORM integration
-- **Environment**: Configurable through environment variables
-
-## 🔧 Configuration
-
-### Frontend Environment (`front/.env`)
-
-```bash
-API_BASE_URL=http://localhost:8000
+```
+nube_cositas_aws/
+├── back/                 # Backend FastAPI
+│   ├── main.py          # Aplicación principal con endpoint /config
+│   ├── models.py        # Modelos SQLAlchemy
+│   ├── schemas.py       # Esquemas Pydantic
+│   ├── crud.py          # Operaciones CRUD
+│   ├── database.py      # Configuración DB
+│   ├── env.example      # Variables de entorno para AWS
+│   ├── env.local        # Variables de entorno para desarrollo
+│   └── .env             # Configuración activa (generado)
+├── front/               # Frontend estático
+│   ├── index.html
+│   ├── script.js
+│   ├── style.css
+│   └── config.js        # Configuración dinámica
+├── db/                  # Scripts PostgreSQL
+├── configure.sh         # Script de configuración automática
+└── AWS_SECURITY_GROUPS.md # Documentación AWS
 ```
 
-### Backend Environment (`back/.env`)
+## 🔧 Características del Sistema de Configuración
 
+### ✅ Variables de Entorno Dinámicas
+- Todo configurable desde `.env`
+- Diferentes perfiles (local, AWS, custom)
+- Sin hardcoding de IPs en el código
+
+### ✅ Configuración Frontend Dinámica
+- El frontend obtiene configuración del endpoint `/config`
+- Configuración automática del API_BASE_URL
+- Fallback a configuración estática si es necesario
+
+### ✅ CORS Automático
+- CORS configurado desde variables de entorno
+- Soporte para múltiples orígenes
+- Logs de configuración para debugging
+
+### ✅ Endpoints de Configuración
+- `GET /config` - Configuración dinámica para el frontend
+- `GET /health` - Health check
+- `GET /docs` - Documentación Swagger
+
+## 🌐 Despliegue en AWS
+
+### Configuración de IPs VPC
+```env
+# En tu .env
+DATABASE_URL=postgresql://todouser:todopass@172.31.84.125:5432/todoapp
+BACKEND_HOST=172.31.84.125
+FRONTEND_HOST=172.31.81.41
+CORS_ORIGINS=http://172.31.81.41,http://172.31.81.41:80,http://172.31.81.41:8080
+```
+
+### Grupos de Seguridad Requeridos
+
+**Backend EC2 (172.31.84.125)**:
+- Puerto 8000 desde Frontend IP (172.31.81.41/32)
+- Puerto 8000 desde tu IP pública (para Swagger)
+- Puerto 22 desde tu IP pública (SSH)
+
+**Frontend EC2 (172.31.81.41)**:
+- Puerto 80 desde 0.0.0.0/0 (acceso web)
+- Puerto 22 desde tu IP pública (SSH)
+
+Ver `AWS_SECURITY_GROUPS.md` para configuración detallada.
+
+## 📋 Comandos de Verificación
+
+### Verificar Configuración Dinámica
 ```bash
-DATABASE_URL=postgresql://todouser:todopass@localhost:5432/todoapp
-CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+curl http://172.31.84.125:8000/config
+```
+
+### Verificar CORS
+```bash
+curl -H "Origin: http://172.31.81.41" \
+     -X OPTIONS \
+     http://172.31.84.125:8000/todos
+```
+
+### Verificar Health Check
+```bash
+curl http://172.31.84.125:8000/health
+```
+
+## 🛠️ Desarrollo
+
+### Estructura de la API
+
+**Endpoints disponibles:**
+- `GET /` - Root endpoint
+- `GET /config` - Configuración dinámica
+- `GET /health` - Health check
+- `GET /todos` - Listar todos
+- `POST /todos` - Crear todo
+- `GET /todos/{id}` - Obtener todo específico
+- `PUT /todos/{id}` - Actualizar todo
+- `DELETE /todos/{id}` - Eliminar todo
+- `GET /docs` - Documentación Swagger
+
+### Variables de Entorno Disponibles
+
+```env
+# Database
+DATABASE_URL=postgresql://user:pass@host:port/db
+
+# CORS
+CORS_ORIGINS=http://origin1,http://origin2
+
+# Server
 HOST=0.0.0.0
 PORT=8000
+
+# Frontend Config
+FRONTEND_HOST=frontend-ip
+FRONTEND_PORT=80
+FRONTEND_PROTOCOL=http
+
+# Backend Config
+BACKEND_HOST=backend-ip
+BACKEND_PORT=8000
+BACKEND_PROTOCOL=http
+
+# Environment
+ENVIRONMENT=development|production
 ```
 
-## 📚 API Documentation
+## 🔄 Cambiar Configuración
 
-Once the backend is running, visit:
+### Para cambiar IPs o configuración:
 
-- **Interactive docs**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
+1. **Ejecutar reconfiguración**:
+   ```bash
+   ./configure.sh
+   ```
 
-## 🏗️ API Endpoints
+2. **O editar manualmente**:
+   ```bash
+   nano back/.env
+   cd back && ./run.sh  # Reiniciar backend
+   ```
 
-| Method | Endpoint      | Description         |
-| ------ | ------------- | ------------------- |
-| GET    | `/todos`      | List all todos      |
-| POST   | `/todos`      | Create a new todo   |
-| GET    | `/todos/{id}` | Get a specific todo |
-| PUT    | `/todos/{id}` | Update a todo       |
-| DELETE | `/todos/{id}` | Delete a todo       |
-| GET    | `/health`     | Health check        |
+3. **Verificar cambios**:
+   ```bash
+   curl http://NEW_IP:8000/config
+   ```
 
-## 🛠️ Development
+## 🐛 Troubleshooting
 
-### Frontend
+### Error de CORS
+- ✅ Verificar `CORS_ORIGINS` en `.env`
+- ✅ Reiniciar backend después de cambios
+- ✅ Verificar logs del servidor
 
-- **Technology**: Vanilla HTML/CSS/JavaScript
-- **Server**: http-server (lightweight static file server)
-- **Port**: 3000
+### Frontend no conecta
+- ✅ Verificar endpoint `/config`
+- ✅ Revisar consola del navegador
+- ✅ Verificar grupos de seguridad AWS
 
-### Backend
+### Base de datos no conecta
+- ✅ Verificar `DATABASE_URL`
+- ✅ Confirmar PostgreSQL corriendo
+- ✅ Verificar credenciales
 
-- **Framework**: FastAPI
-- **ORM**: SQLAlchemy 2.0
-- **Package Manager**: Poetry
-- **Port**: 8000
+## 📚 Tecnologías
 
-### Database
+- **Backend**: FastAPI, SQLAlchemy, PostgreSQL
+- **Frontend**: HTML5, CSS3, JavaScript (vanilla)
+- **Infrastructure**: AWS EC2, VPC
+- **Configuration**: Environment variables, dynamic config
 
-- **Database**: PostgreSQL
-- **User**: todouser
-- **Password**: todopass
-- **Database**: todoapp
+## 🎯 Próximos Pasos
 
-## 📁 Detailed File Structure
-
-```
-front/
-├── index.html      # Main HTML page
-├── style.css       # Styling
-├── script.js       # Frontend logic
-├── config.js       # Environment configuration
-├── install.sh      # Installation script
-└── run.sh          # Run script
-
-back/
-├── main.py         # FastAPI application
-├── models.py       # SQLAlchemy models
-├── schemas.py      # Pydantic schemas
-├── crud.py         # Database operations
-├── database.py     # Database configuration
-├── pyproject.toml  # Poetry configuration
-├── env.example     # Environment variables template
-├── install.sh      # Installation script
-└── run.sh          # Run script
-
-db/
-├── init.sql        # Database initialization script
-├── install.sh      # PostgreSQL installation
-└── run.sh          # Database setup script
-```
-
-## 🔍 Troubleshooting
-
-### Backend Issues
-
-- **Database connection failed**: Ensure PostgreSQL is running and credentials are correct
-- **Port already in use**: Change PORT in backend `.env` file
-- **Poetry not found**: Run `source ~/.bashrc` after installation
-
-### Frontend Issues
-
-- **API calls fail**: Check if backend is running and API_BASE_URL is correct
-- **CORS errors**: Ensure frontend URL is in backend CORS_ORIGINS
-
-### Database Issues
-
-- **Database already exists**: Use the reset commands shown in db/run.sh
-- **Permission denied**: Ensure PostgreSQL service is running
-
-## 🌐 Production Deployment
-
-1. **Security**: Change default passwords and database credentials
-2. **Environment**: Set appropriate environment variables for production
-3. **Reverse Proxy**: Use nginx or similar for production serving
-4. **SSL**: Configure HTTPS certificates
-5. **Database**: Use managed PostgreSQL service or secure self-hosted setup
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
-## 📄 License
-
-This project is open source and available under the [MIT License](LICENSE).
+- [ ] Implementar HTTPS con certificados SSL
+- [ ] Agregar autenticación JWT
+- [ ] Implementar testing automatizado
+- [ ] Agregar Docker support
+- [ ] CI/CD pipeline con GitHub Actions

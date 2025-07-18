@@ -20,17 +20,25 @@ app = FastAPI(
 )
 
 # Configure CORS
-origins = [
-    "http://localhost:3000",  # Frontend dev server
+# Default origins for development
+default_origins = [
+    "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "http://localhost:8080",  # Alternative frontend port
+    "http://localhost:8080",
     "http://127.0.0.1:8080",
 ]
 
-# Add custom origins from environment
-custom_origins = os.getenv("CORS_ORIGINS", "").split(",")
-if custom_origins and custom_origins[0]:
-    origins.extend(custom_origins)
+# Get origins from environment variable
+cors_origins_env = os.getenv("CORS_ORIGINS", "")
+if cors_origins_env:
+    # Split by comma and clean whitespace
+    env_origins = [origin.strip() for origin in cors_origins_env.split(",") if origin.strip()]
+    origins = env_origins
+else:
+    # Use default origins if no environment variable is set
+    origins = default_origins
+
+print(f"CORS enabled for origins: {origins}")
 
 app.add_middleware(
     CORSMiddleware,
@@ -46,6 +54,19 @@ app.add_middleware(
 def read_root():
     """Root endpoint"""
     return {"message": "Todo API is running!"}
+
+@app.get("/config")
+def get_config():
+    """Get frontend configuration"""
+    backend_protocol = os.getenv("BACKEND_PROTOCOL", "http")
+    backend_host = os.getenv("BACKEND_HOST", "localhost")
+    backend_port = os.getenv("BACKEND_PORT", "8000")
+    
+    return {
+        "apiBaseUrl": f"{backend_protocol}://{backend_host}:{backend_port}",
+        "environment": os.getenv("ENVIRONMENT", "development"),
+        "version": "1.0.0"
+    }
 
 @app.get("/health")
 def health_check():
