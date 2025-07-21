@@ -13,7 +13,7 @@ def get_todo(db: Session, todo_id: int) -> Optional[models.Todo]:
 
 def create_todo(db: Session, todo: schemas.TodoCreate) -> models.Todo:
     """Create a new todo"""
-    db_todo = models.Todo(title=todo.title)
+    db_todo = models.Todo(title=todo.title, content=todo.content)
     db.add(db_todo)
     db.commit()
     db.refresh(db_todo)
@@ -25,6 +25,8 @@ def update_todo(db: Session, todo_id: int, todo_update: schemas.TodoUpdate) -> O
     if db_todo:
         if todo_update.title is not None:
             db_todo.title = todo_update.title
+        if todo_update.content is not None:
+            db_todo.content = todo_update.content
         if todo_update.completed is not None:
             db_todo.completed = todo_update.completed
         db.commit()
