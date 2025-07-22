@@ -1,12 +1,17 @@
-// Enhanced Todo App with Markdown Support
-class TodoApp {
+// Advanced Todo App with Enhanced Markdown Editor
+class AdvancedTodoApp {
   constructor() {
     this.API_BASE_URL = window.ENV?.API_BASE_URL || "http://localhost:8000";
     this.todos = [];
-    this.viewMode = 'card'; // 'card' or 'list'
+    this.viewMode = 'card';
+    this.filterMode = 'all';
     this.currentEditId = null;
-    this.simpleMDEEditor = null;
-    this.editMDEEditor = null;
+    this.currentTheme = 'default';
+    this.previewMode = 'side-by-side';
+    
+    // Editor instances
+    this.mainEditor = null;
+    this.editEditor = null;
     
     this.initializeApp();
   }
@@ -14,8 +19,10 @@ class TodoApp {
   async initializeApp() {
     this.setupEventListeners();
     this.initializeMarkdownEditors();
+    this.setupMarkedOptions();
     await this.loadTodos();
     this.updateTodoCount();
+    this.setupKeyboardShortcuts();
   }
 
   setupEventListeners() {
@@ -36,6 +43,22 @@ class TodoApp {
       this.renderTodos();
     });
 
+    // Filter toggles
+    document.getElementById('filterAll').addEventListener('change', () => {
+      this.filterMode = 'all';
+      this.renderTodos();
+    });
+
+    document.getElementById('filterPending').addEventListener('change', () => {
+      this.filterMode = 'pending';
+      this.renderTodos();
+    });
+
+    document.getElementById('filterCompleted').addEventListener('change', () => {
+      this.filterMode = 'completed';
+      this.renderTodos();
+    });
+
     // Edit form submission
     document.getElementById('editForm').addEventListener('submit', (e) => {
       e.preventDefault();
@@ -43,28 +66,152 @@ class TodoApp {
     });
   }
 
+  setupMarkedOptions() {
+    // Configure marked.js for better rendering
+    marked.setOptions({
+      highlight: function(code, lang) {
+        if (hljs && lang && hljs.getLanguage(lang)) {
+          try {
+            return hljs.highlight(code, { language: lang }).value;
+          } catch (err) {}
+        }
+        return code;
+      },
+      breaks: true,
+      gfm: true
+    });
+  }
+
   initializeMarkdownEditors() {
-    // Initialize SimpleMDE for new todo content
-    this.simpleMDEEditor = new SimpleMDE({
-      element: document.getElementById('todoContent'),
-      placeholder: 'Enter your markdown content here...\n\nYou can use:\n- **bold** and *italic* text\n- `code` blocks\n- # Headers\n- > Blockquotes\n- Lists and more!',
-      spellChecker: false,
-      autofocus: false,
-      toolbar: [
-        'bold', 'italic', 'heading', '|',
-        'quote', 'unordered-list', 'ordered-list', '|',
-        'link', 'image', '|',
-        'code', 'table', '|',
-        'preview', 'side-by-side', 'fullscreen', '|',
-        'guide'
-      ],
-      renderingConfig: {
-        singleLineBreaks: false,
-        codeSyntaxHighlighting: true,
-      }
+    // Initialize main editor with CodeMirror
+    const mainTextarea = document.getElementById('todoContent');
+    this.mainEditor = CodeMirror.fromTextArea(mainTextarea, {
+      mode: 'markdown',
+      theme: 'default',
+      lineNumbers: true,
+      lineWrapping: true,
+      styleActiveLine: true,
+      scrollbarStyle: 'simple',
+      extraKeys: {
+        'Ctrl-Space': 'autocomplete',
+        'Ctrl-/': 'toggleComment',
+        'Ctrl-B': () => this.insertMarkdown('**', '**'),
+        'Ctrl-I': () => this.insertMarkdown('*', '*'),
+        'Ctrl-K': () => this.insertMarkdown('[', '](url)'),
+      },
+      placeholder: this.getEditorPlaceholder()
     });
 
-    // Initialize SimpleMDE for edit modal (will be done when modal opens)
+    // Set up live preview for main editor
+    this.mainEditor.on('change', () => {
+      this.updatePreview();
+      this.updateEditorStats();
+    });
+
+    // Initial preview update
+    setTimeout(() => {
+      this.updatePreview();
+      this.updateEditorStats();
+    }, 100);
+  }
+
+  getEditorPlaceholder() {
+    return `# Welcome to Advanced Markdown Editor!
+
+Start typing your markdown content here...
+
+## Features Available:
+- **Bold text** and *italic text*
+- \`Code blocks\` and syntax highlighting
+- [Links](https://example.com)
+- > Blockquotes
+- Lists and tables
+- And much more!
+
+## Live Preview
+See your markdown rendered in real-time on the right panel!`;
+  }
+
+  updatePreview() {
+    const content = this.mainEditor.getValue();
+    const preview = document.getElementById('markdownPreview');
+    
+    if (content.trim()) {
+      try {
+        const rendered = marked.parse(content);
+        preview.innerHTML = rendered;
+        
+        // Highlight code blocks
+        if (window.hljs) {
+          preview.querySelectorAll('pre code').forEach((block) => {
+            hljs.highlightElement(block);
+          });
+        }
+      } catch (error) {
+        preview.innerHTML = `<div class="alert alert-warning">
+          <i class="fas fa-exclamation-triangle me-2"></i>
+          Error rendering markdown: ${error.message}
+        </div>`;
+      }
+    } else {
+      preview.innerHTML = `
+        <div class="text-center text-muted">
+          <i class="fas fa-edit fa-2x mb-3"></i>
+          <p>Start typing in the editor to see live preview here</p>
+        </div>
+      `;
+    }
+  }
+
+  updateEditPreview() {
+    if (!this.editEditor) return;
+    
+    const content = this.editEditor.getValue();
+    const preview = document.getElementById('editMarkdownPreview');
+    
+    if (content.trim()) {
+      try {
+        const rendered = marked.parse(content);
+        preview.innerHTML = rendered;
+        
+        // Highlight code blocks
+        if (window.hljs) {
+          preview.querySelectorAll('pre code').forEach((block) => {
+            hljs.highlightElement(block);
+          });
+        }
+      } catch (error) {
+        preview.innerHTML = `<div class="alert alert-warning">
+          <i class="fas fa-exclamation-triangle me-2"></i>
+          Error rendering markdown: ${error.message}
+        </div>`;
+      }
+    } else {
+      preview.innerHTML = `
+        <div class="text-center text-muted">
+          <i class="fas fa-edit fa-2x mb-3"></i>
+          <p>Start editing to see preview</p>
+        </div>
+      `;
+    }
+  }
+
+  updateEditorStats() {
+    const content = this.mainEditor.getValue();
+    const chars = content.length;
+    const words = content.trim() ? content.trim().split(/\s+/).length : 0;
+    const lines = this.mainEditor.lineCount();
+    
+    document.getElementById('editorStats').textContent = 
+      `${chars} characters, ${words} words, ${lines} lines`;
+  }
+
+  insertMarkdown(start, end) {
+    const editor = this.mainEditor;
+    const selection = editor.getSelection();
+    const replacement = start + (selection || 'text') + end;
+    editor.replaceSelection(replacement);
+    editor.focus();
   }
 
   // API Methods
@@ -104,7 +251,7 @@ class TodoApp {
 
   async addTodo() {
     const title = document.getElementById('todoTitle').value.trim();
-    const content = this.simpleMDEEditor.value().trim();
+    const content = this.mainEditor.getValue().trim();
 
     if (!title) {
       this.showToast('Please enter a todo title', 'warning');
@@ -112,6 +259,8 @@ class TodoApp {
     }
 
     try {
+      this.showToast('Creating todo...', 'info');
+      
       const newTodo = await this.apiCall('/todos', {
         method: 'POST',
         body: JSON.stringify({ 
@@ -121,12 +270,12 @@ class TodoApp {
       });
 
       this.todos.unshift(newTodo);
-      this.clearForm();
+      this.clearEditor();
       this.renderTodos();
       this.updateTodoCount();
-      this.showToast('Todo added successfully!', 'success');
+      this.showToast('Todo created successfully!', 'success');
     } catch (error) {
-      this.showToast('Failed to add todo', 'error');
+      this.showToast('Failed to create todo', 'error');
     }
   }
 
@@ -182,35 +331,40 @@ class TodoApp {
     document.getElementById('editTodoId').value = id;
     document.getElementById('editTodoTitle').value = todo.title;
 
-    // Initialize or update edit markdown editor
-    if (this.editMDEEditor) {
-      this.editMDEEditor.value(todo.content || '');
-    } else {
-      // Initialize SimpleMDE for edit modal
-      setTimeout(() => {
-        this.editMDEEditor = new SimpleMDE({
-          element: document.getElementById('editTodoContent'),
-          initialValue: todo.content || '',
-          spellChecker: false,
-          toolbar: [
-            'bold', 'italic', 'heading', '|',
-            'quote', 'unordered-list', 'ordered-list', '|',
-            'link', 'image', '|',
-            'code', 'table', '|',
-            'preview', 'side-by-side', 'fullscreen'
-          ]
-        });
-      }, 100);
+    // Initialize edit editor if not already done
+    if (!this.editEditor) {
+      const editTextarea = document.getElementById('editTodoContent');
+      this.editEditor = CodeMirror.fromTextArea(editTextarea, {
+        mode: 'markdown',
+        theme: 'default',
+        lineNumbers: true,
+        lineWrapping: true,
+        styleActiveLine: true,
+      });
+
+      this.editEditor.on('change', () => {
+        this.updateEditPreview();
+      });
     }
 
+    // Set content
+    this.editEditor.setValue(todo.content || '');
+    
+    // Show modal
     const modal = new bootstrap.Modal(document.getElementById('editModal'));
     modal.show();
+
+    // Update preview after modal is shown
+    setTimeout(() => {
+      this.editEditor.refresh();
+      this.updateEditPreview();
+    }, 300);
   }
 
   async saveEdit() {
     const id = parseInt(document.getElementById('editTodoId').value);
     const title = document.getElementById('editTodoTitle').value.trim();
-    const content = this.editMDEEditor ? this.editMDEEditor.value().trim() : '';
+    const content = this.editEditor ? this.editEditor.getValue().trim() : '';
 
     if (!title) {
       this.showToast('Please enter a todo title', 'warning');
@@ -246,7 +400,16 @@ class TodoApp {
   renderTodos() {
     const container = document.getElementById('todosContainer');
     
-    if (this.todos.length === 0) {
+    let filteredTodos = this.todos;
+    
+    // Apply filter
+    if (this.filterMode === 'pending') {
+      filteredTodos = this.todos.filter(t => !t.completed);
+    } else if (this.filterMode === 'completed') {
+      filteredTodos = this.todos.filter(t => t.completed);
+    }
+    
+    if (filteredTodos.length === 0) {
       this.showEmptyState();
       return;
     }
@@ -255,7 +418,7 @@ class TodoApp {
     
     container.innerHTML = `
       <div class="${containerClass}">
-        ${this.todos.map(todo => this.renderTodoItem(todo)).join('')}
+        ${filteredTodos.map(todo => this.renderTodoItem(todo)).join('')}
       </div>
     `;
   }
@@ -277,13 +440,13 @@ class TodoApp {
         <div class="todo-title">${this.escapeHtml(todo.title)}</div>
         
         ${todo.content ? `
-          <div class="todo-content">
+          <div class="todo-content markdown-preview">
             ${renderedContent}
           </div>
         ` : ''}
         
         <div class="todo-meta">
-          <i class="fas fa-calendar-alt me-1"></i>
+          <i class="fas fa-calendar-alt me-2"></i>
           Created: ${formattedDate}
           ${todo.completed ? '<span class="badge bg-success ms-2">Completed</span>' : '<span class="badge bg-primary ms-2">Pending</span>'}
         </div>
@@ -315,7 +478,7 @@ class TodoApp {
         <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
           <span class="visually-hidden">Loading...</span>
         </div>
-        <p class="mt-3 text-muted">Loading your todos...</p>
+        <p class="mt-3 text-muted">Loading your amazing todos...</p>
       </div>
     `;
   }
@@ -324,8 +487,8 @@ class TodoApp {
     const defaultMessage = `
       <div class="empty-state">
         <i class="fas fa-clipboard-list"></i>
-        <h4>No todos yet</h4>
-        <p>Create your first todo above to get started!</p>
+        <h4>No todos found</h4>
+        <p>Create your first todo with the amazing markdown editor above!</p>
       </div>
     `;
 
@@ -343,20 +506,25 @@ class TodoApp {
     document.getElementById('todosContainer').innerHTML = message ? errorMessage : defaultMessage;
   }
 
-  clearForm() {
+  clearEditor() {
     document.getElementById('todoTitle').value = '';
-    if (this.simpleMDEEditor) {
-      this.simpleMDEEditor.value('');
+    if (this.mainEditor) {
+      this.mainEditor.setValue('');
+      this.mainEditor.focus();
     }
+    this.updatePreview();
+    this.updateEditorStats();
   }
 
   updateTodoCount() {
     const count = this.todos.length;
     const completedCount = this.todos.filter(t => t.completed).length;
+    const pendingCount = count - completedCount;
+    
     document.getElementById('todoCount').textContent = count;
     
     // Update page title
-    document.title = `Todo App (${count})${count > 0 ? ` - ${completedCount}/${count} completed` : ''}`;
+    document.title = `Advanced Todo (${count})${count > 0 ? ` - ${pendingCount} pending` : ''}`;
   }
 
   showToast(message, type = 'info') {
@@ -364,12 +532,21 @@ class TodoApp {
     const toastBody = document.getElementById('toastBody');
     const toastHeader = toastEl.querySelector('.toast-header');
     
-    // Update toast styling based on type
-    toastEl.className = `toast ${type === 'error' ? 'bg-danger' : type === 'success' ? 'bg-success' : type === 'warning' ? 'bg-warning' : 'bg-info'}`;
+    // Reset classes
+    toastEl.className = 'toast';
     
-    if (type === 'error' || type === 'success') {
-      toastEl.classList.add('text-white');
-      toastHeader.classList.add('text-white');
+    // Update styling based on type
+    if (type === 'error') {
+      toastEl.classList.add('bg-danger', 'text-white');
+      toastHeader.classList.add('bg-danger', 'text-white');
+    } else if (type === 'success') {
+      toastEl.classList.add('bg-success', 'text-white');
+      toastHeader.classList.add('bg-success', 'text-white');
+    } else if (type === 'warning') {
+      toastEl.classList.add('bg-warning');
+    } else {
+      toastEl.classList.add('bg-info', 'text-white');
+      toastHeader.classList.add('bg-info', 'text-white');
     }
     
     // Update icon based on type
@@ -386,6 +563,22 @@ class TodoApp {
     toast.show();
   }
 
+  setupKeyboardShortcuts() {
+    document.addEventListener('keydown', (e) => {
+      // Ctrl+N - New todo (focus title)
+      if (e.ctrlKey && e.key === 'n') {
+        e.preventDefault();
+        document.getElementById('todoTitle').focus();
+      }
+      
+      // Ctrl+R - Refresh todos
+      if (e.ctrlKey && e.key === 'r') {
+        e.preventDefault();
+        this.loadTodos();
+      }
+    });
+  }
+
   escapeHtml(unsafe) {
     return unsafe
       .replace(/&/g, "&amp;")
@@ -396,15 +589,99 @@ class TodoApp {
   }
 }
 
-// Global functions for onclick handlers
-window.clearForm = function() {
-  todoApp.clearForm();
+// Global functions for HTML onclick handlers
+window.clearEditor = function() {
+  todoApp.clearEditor();
+};
+
+window.toggleEditorTheme = function() {
+  const themes = ['default', 'material', 'material-darker', 'dracula'];
+  const currentIndex = themes.indexOf(todoApp.currentTheme);
+  const nextIndex = (currentIndex + 1) % themes.length;
+  const newTheme = themes[nextIndex];
+  
+  todoApp.currentTheme = newTheme;
+  todoApp.mainEditor.setOption('theme', newTheme);
+  
+  if (todoApp.editEditor) {
+    todoApp.editEditor.setOption('theme', newTheme);
+  }
+  
+  todoApp.showToast(`Theme changed to ${newTheme}`, 'info');
+};
+
+window.togglePreviewMode = function() {
+  const previewPanel = document.querySelector('.preview-panel');
+  const editorPanel = document.querySelector('.editor-panel');
+  
+  if (todoApp.previewMode === 'side-by-side') {
+    // Hide preview
+    previewPanel.style.display = 'none';
+    editorPanel.classList.remove('col-lg-6');
+    editorPanel.classList.add('col-lg-12');
+    todoApp.previewMode = 'editor-only';
+    todoApp.showToast('Preview hidden', 'info');
+  } else {
+    // Show preview
+    previewPanel.style.display = 'block';
+    editorPanel.classList.remove('col-lg-12');
+    editorPanel.classList.add('col-lg-6');
+    todoApp.previewMode = 'side-by-side';
+    todoApp.showToast('Preview shown', 'info');
+  }
+  
+  // Refresh editor
+  setTimeout(() => {
+    todoApp.mainEditor.refresh();
+  }, 100);
+};
+
+window.copyMarkdown = function() {
+  const content = todoApp.mainEditor.getValue();
+  if (content) {
+    navigator.clipboard.writeText(content).then(() => {
+      todoApp.showToast('Markdown copied to clipboard!', 'success');
+    }).catch(() => {
+      todoApp.showToast('Failed to copy to clipboard', 'error');
+    });
+  } else {
+    todoApp.showToast('Nothing to copy', 'warning');
+  }
+};
+
+window.insertTemplate = function() {
+  const template = `# Project Task
+
+## Description
+Brief description of what needs to be done.
+
+## Steps
+1. [ ] First step
+2. [ ] Second step
+3. [ ] Final step
+
+## Notes
+- Important note 1
+- Important note 2
+
+## Code Example
+\`\`\`javascript
+// Your code here
+console.log("Hello, World!");
+\`\`\`
+
+> **Tip:** You can edit this template to fit your needs!
+`;
+
+  todoApp.mainEditor.setValue(template);
+  todoApp.mainEditor.focus();
+  todoApp.showToast('Template inserted!', 'success');
 };
 
 // Initialize the app when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
   // Wait for environment configuration to load
   setTimeout(() => {
-    window.todoApp = new TodoApp();
+    window.todoApp = new AdvancedTodoApp();
   }, 100);
 });
